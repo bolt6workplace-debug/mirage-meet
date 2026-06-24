@@ -17,7 +17,6 @@ export default defineConfig({
   },
   optimizeDeps: {
     exclude: [
-      'lucide-react',
       'onnxruntime-web',
       '@tensorflow/tfjs',
       '@tensorflow-models/face-landmarks-detection',
