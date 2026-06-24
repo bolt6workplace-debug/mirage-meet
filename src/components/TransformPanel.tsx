@@ -12,6 +12,7 @@ interface TransformPanelProps {
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   statusMessage: string;
+  modelLoadProgress: number;
 }
 
 export default function TransformPanel({
@@ -23,6 +24,7 @@ export default function TransformPanel({
   isCollapsed,
   onToggleCollapse,
   statusMessage,
+  modelLoadProgress,
 }: TransformPanelProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -188,6 +190,23 @@ export default function TransformPanel({
           {getStatusIcon()}
           <span className="text-xs text-dark-300">{statusMessage}</span>
         </div>
+
+        {/* Model loading progress bar */}
+        {modelLoadProgress > 0 && modelLoadProgress < 100 && (
+          <div className="mb-4">
+            <div className="flex justify-between text-xs text-dark-400 mb-1">
+              <span>Loading AI Model</span>
+              <span>{modelLoadProgress}%</span>
+            </div>
+            <div className="h-2 bg-dark-700 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-primary-500 to-primary-400 transition-all duration-300"
+                style={{ width: `${modelLoadProgress}%` }}
+              />
+            </div>
+            <p className="text-xs text-dark-500 mt-1">Downloading ONNX model (~140MB)</p>
+          </div>
+        )}
 
         <div className="space-y-6">
           {/* Video Upload */}

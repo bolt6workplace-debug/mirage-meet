@@ -41,6 +41,7 @@ export default function Meeting() {
     initializeTransform,
     updateBackground,
     statusMessage,
+    modelLoadProgress,
     cleanup: cleanupTransform,
   } = useFaceTransform();
 
@@ -366,6 +367,7 @@ export default function Meeting() {
             isCollapsed={panelCollapsed}
             onToggleCollapse={() => setPanelCollapsed(!panelCollapsed)}
             statusMessage={statusMessage}
+            modelLoadProgress={modelLoadProgress}
           />
         )}
       </div>
