@@ -772,14 +772,32 @@ export async function registerReferenceFace(imageBuffer) {
 export async function transformFrame(jpegBuffer) {
   if (initState !== 'ready' || !referenceEmbedding) return null;
 
-  const { data, width, height } = await decodeToRGBA(jpegBuffer);
-  const faces = await detectFaces(data, width, height);
-  const best  = getBestFace(faces);
-  if (!best) return null;
+  console.log('[Transform] Received frame, size:', jpegBuffer.length, 'bytes');
 
+  const { data, width, height } = await decodeToRGBA(jpegBuffer);
+  console.log('[Transform] Decoded frame:', width, 'x', height);
+
+  // Use lower threshold (0.3) for live frames — camera angles and lighting vary
+  let faces = await detectFaces(data, width, height, 0.3);
+  console.log('[Transform] Faces detected at 0.3 threshold:', faces.length);
+
+  // Retry at even lower threshold if still none found
+  if (!faces.length) {
+    faces = await detectFacesWithThreshold(data, width, height, 0.15);
+    console.log('[Transform] Faces detected at 0.15 threshold:', faces.length);
+  }
+
+  const best = getBestFace(faces);
+  if (!best) {
+    console.log('[Transform] No face found — returning 204');
+    return null;
+  }
+
+  console.log('[Transform] Best face score:', best.score.toFixed(3), 'running inswapper...');
   const { pred, M } = await runSwapper(data, width, height, best.kps, referenceEmbedding);
   const resultPixels = pasteBack(data, width, height, pred, M, 128);
 
+  console.log('[Transform] AI output generated, encoding JPEG...');
   return encodeToJPEG(resultPixels, width, height, 85);
 }
 

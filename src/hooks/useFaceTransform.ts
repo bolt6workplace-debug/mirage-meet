@@ -228,37 +228,47 @@ export function useFaceTransform(): UseFaceTransformReturn {
       cap.getContext('2d')!.drawImage(videoEl, 0, 0, W, H);
 
       const blob: Blob = await new Promise(res => cap.toBlob(b => res(b!), 'image/jpeg', 0.85));
+      console.log('[Transform] Sending frame to AI server, size:', blob.size, 'bytes, dims:', W, 'x', H);
       const form = new FormData();
       form.append('frame', blob, 'frame.jpg');
 
       const res = await fetch(`${SERVER}/ai/transform-frame`, { method: 'POST', body: form });
 
       if (res.status === 204) {
-        // No face detected in frame — clear swapped frame
-        swappedFrameRef.current = null;
+        // No face detected in this frame — keep last good transformed frame, do NOT clear it
+        console.log('[Transform] No face in frame (204), keeping last good frame');
         transformBusyRef.current = false;
         return;
       }
 
       if (!res.ok) {
+        console.warn('[Transform] Server error:', res.status);
         transformBusyRef.current = false;
         return;
       }
 
       const jpegBlob = await res.blob();
+      console.log('[Transform] Received transformed frame, size:', jpegBlob.size, 'bytes');
       const url = URL.createObjectURL(jpegBlob);
-      const img = document.createElement('img');
+      const img = new Image();
       img.onload = () => {
-        // Revoke old URL
-        if (swappedFrameRef.current?.src?.startsWith('blob:')) {
-          URL.revokeObjectURL(swappedFrameRef.current.src);
-        }
+        console.log('[Transform] Transformed frame loaded, dims:', img.naturalWidth, 'x', img.naturalHeight);
+        // Revoke old URL only after new img is confirmed loaded
+        const prev = swappedFrameRef.current;
         swappedFrameRef.current = img;
+        if (prev?.src?.startsWith('blob:')) {
+          URL.revokeObjectURL(prev.src);
+        }
         transformBusyRef.current = false;
       };
-      img.onerror = () => { transformBusyRef.current = false; };
+      img.onerror = () => {
+        console.warn('[Transform] Failed to load transformed frame img');
+        URL.revokeObjectURL(url);
+        transformBusyRef.current = false;
+      };
       img.src = url;
-    } catch {
+    } catch (err: any) {
+      console.warn('[Transform] sendFrameForTransform error:', err.message);
       transformBusyRef.current = false;
     }
   }, []);
@@ -333,7 +343,8 @@ export function useFaceTransform(): UseFaceTransformReturn {
     }
 
     // 2. Person layer (transformed or original)
-    const sourceFrame = (s.enabled && swapped?.complete && swapped.naturalWidth > 0) ? swapped : vid;
+    const hasValidSwap = s.enabled && swapped != null && swapped.complete && swapped.naturalWidth > 0;
+    const sourceFrame = hasValidSwap ? swapped! : vid;
 
     if (seg?.segmentationMask && bgVal) {
       const personOff = new OffscreenCanvas(W, H);
@@ -347,8 +358,8 @@ export function useFaceTransform(): UseFaceTransformReturn {
       ctx.drawImage(sourceFrame, 0, 0, W, H);
     }
 
-    // Status
-    if (s.enabled && swapped) {
+    // Status — use same valid-swap check as sourceFrame selection
+    if (hasValidSwap) {
       setStatus('AI Transformation Active');
     } else if (s.enabled && faceRegisteredRef.current) {
       setStatus('Processing frames...');

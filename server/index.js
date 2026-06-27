@@ -81,8 +81,13 @@ app.post('/ai/register-face', upload.single('image'), async (req, res) => {
 app.post('/ai/transform-frame', upload.single('frame'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No frame provided' });
+    console.log('[Server] transform-frame: received frame, size:', req.file.size, 'bytes');
     const resultJpeg = await transformFrame(req.file.buffer);
-    if (!resultJpeg) return res.status(204).end();
+    if (!resultJpeg) {
+      console.log('[Server] transform-frame: no face detected, returning 204');
+      return res.status(204).end();
+    }
+    console.log('[Server] transform-frame: sending transformed JPEG, size:', resultJpeg.length, 'bytes');
     res.set('Content-Type', 'image/jpeg');
     res.set('Access-Control-Allow-Origin', '*');
     res.send(resultJpeg);
