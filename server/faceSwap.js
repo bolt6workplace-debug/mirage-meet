@@ -364,39 +364,33 @@ function warpAffineBack(pixels, srcW, srcH, M_inv, outW, outH) {
 
 /**
  * Convert RGBA pixel array to CHW float32 blob.
- * Both ArcFace (w600k_r50) and InSwapper were trained with OpenCV (BGR channel order).
- * norm='arcface': (v-127.5)/128  norm='swapper': (v-127.5)/127.5 (same as ArcFace, input range -1 to 1)
+ * Both ArcFace and InSwapper use cv2.dnn.blobFromImage with swapRB=True, meaning
+ * they expect **RGB** channel order. Normalization: (x - 127.5) / 127.5 → range [-1, 1].
  */
 function pixelsToBlob(pixels, w, h, norm) {
   const n = w * h;
   const blob = new Float32Array(3 * n);
+  const std = norm === 'arcface' ? 128 : 127.5;
   for (let i = 0; i < n; i++) {
     const r = pixels[i * 4], g = pixels[i * 4 + 1], b = pixels[i * 4 + 2];
-    if (norm === 'arcface') {
-      // BGR order, (x-127.5)/128
-      blob[i]         = (b - 127.5) / 128;
-      blob[n + i]     = (g - 127.5) / 128;
-      blob[2 * n + i] = (r - 127.5) / 128;
-    } else {
-      // InSwapper: BGR order, normalized to [-1, 1] via (x-127.5)/127.5
-      blob[i]         = (b - 127.5) / 127.5;
-      blob[n + i]     = (g - 127.5) / 127.5;
-      blob[2 * n + i] = (r - 127.5) / 127.5;
-    }
+    // RGB order — channel 0=R, 1=G, 2=B
+    blob[i]         = (r - 127.5) / std;
+    blob[n + i]     = (g - 127.5) / std;
+    blob[2 * n + i] = (b - 127.5) / std;
   }
   return blob;
 }
 
-/** Convert CHW float32 prediction [-1,1] → RGBA Uint8ClampedArray. */
+/** Convert CHW float32 prediction [0,1] → RGBA Uint8ClampedArray. */
 function predToPixels(pred, size) {
   const n = size * size;
   const out = new Uint8ClampedArray(n * 4);
   for (let i = 0; i < n; i++) {
-    // InSwapper output is RGB (channel 0=R, 1=G, 2=B) with values in [-1, 1]
-    // Convert to [0, 255]: (x + 1) * 127.5
-    out[i * 4]     = Math.max(0, Math.min(255, Math.round((pred[i]         + 1) * 127.5))); // R ← channel 0
-    out[i * 4 + 1] = Math.max(0, Math.min(255, Math.round((pred[n + i]     + 1) * 127.5))); // G ← channel 1
-    out[i * 4 + 2] = Math.max(0, Math.min(255, Math.round((pred[2 * n + i] + 1) * 127.5))); // B ← channel 2
+    // InSwapper output is RGB (channel 0=R, 1=G, 2=B) with values in [0, 1]
+    // Python ref: np.clip(255 * img, 0, 255) — simple *255, no offset
+    out[i * 4]     = Math.max(0, Math.min(255, Math.round(pred[i]         * 255))); // R ← channel 0
+    out[i * 4 + 1] = Math.max(0, Math.min(255, Math.round(pred[n + i]     * 255))); // G ← channel 1
+    out[i * 4 + 2] = Math.max(0, Math.min(255, Math.round(pred[2 * n + i] * 255))); // B ← channel 2
     out[i * 4 + 3] = 255;
   }
   return out;

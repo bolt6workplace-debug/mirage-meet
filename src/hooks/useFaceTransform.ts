@@ -79,6 +79,7 @@ export function useFaceTransform(): UseFaceTransformReturn {
   const selfieSegRef = useRef<any>(null);
   const segResultRef = useRef<any>(null);
   const segBusyRef = useRef(false);
+  const segBusyAtRef = useRef(0);
 
   const frameRef = useRef(0);
   const settingsRef = useRef(transformationSettings);
@@ -311,9 +312,13 @@ export function useFaceTransform(): UseFaceTransformReturn {
       if (vid && out && vid.readyState >= 2) {
         const W = out.width, H = out.height;
 
-        // Selfie segmentation every 2 frames
+        // Selfie segmentation every 2 frames; reset stuck-busy after 1.5s
+        if (segBusyRef.current && Date.now() - segBusyAtRef.current > 1500) {
+          segBusyRef.current = false;
+        }
         if (!segBusyRef.current && selfieSegRef.current && frame % 2 === 0) {
           segBusyRef.current = true;
+          segBusyAtRef.current = Date.now();
           selfieSegRef.current.send({ image: vid }).catch(() => { segBusyRef.current = false; });
         }
 
